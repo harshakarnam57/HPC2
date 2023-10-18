@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 class Node {
     int value;
-    AtomicReference<Node> next;  // Use AtomicReference for next
+    AtomicReference<Node> next;
 
     Node(int value) {
         this.value = value;
@@ -14,7 +14,7 @@ class Node {
     }
 }
 
-class OptimisticSortedLinkedList {
+class LazySortedLinkedList {
     private AtomicReference<Node> head = new AtomicReference<>(null);
 
     public void insert(int value) {
@@ -27,7 +27,7 @@ class OptimisticSortedLinkedList {
             // Traverse the list to find the correct position for insertion
             while (currentNode != null && currentNode.value < value) {
                 prevNode = currentNode;
-                currentNode = currentNode.next.get();  // Use get() for AtomicReference
+                currentNode = currentNode.next.get();
             }
 
             newNode.next.set(currentNode);
@@ -43,6 +43,13 @@ class OptimisticSortedLinkedList {
                     return;
                 }
             }
+
+            // Delay for a short time (simulate contention)
+            try {
+                Thread.sleep(1);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -52,7 +59,7 @@ class OptimisticSortedLinkedList {
 
         while (currentNode != null && currentNode.value < value) {
             prevNode = currentNode;
-            currentNode = currentNode.next.get();  // Use get() for AtomicReference
+            currentNode = currentNode.next.get();
         }
 
         if (currentNode != null && currentNode.value == value) {
@@ -75,15 +82,15 @@ class OptimisticSortedLinkedList {
         Node currentNode = head.get();
 
         while (currentNode != null && currentNode.value < value) {
-            currentNode = currentNode.next.get();  // Use get() for AtomicReference
+            currentNode = currentNode.next.get();
         }
 
         return currentNode != null && currentNode.value == value;
     }
 }
 
-public class OptimisticLinkedListTest {
-	public static void main(String[] args) {
+public class LazyLinkedListTest {
+    public static void main(String[] args) {
         int[] problemSizes = {2000, 20000, 200000};
         int[] threadCounts = {1, 2, 4, 6, 8, 10, 12, 14, 16};
         String[] workloads = {
@@ -97,7 +104,7 @@ public class OptimisticLinkedListTest {
             for (int numThreads : threadCounts) {
                 for (String workload : workloads) {
                     int[] testData = generateTestData(problemSize);
-                    OptimisticSortedLinkedList list = new OptimisticSortedLinkedList();
+                    LazySortedLinkedList list = new LazySortedLinkedList();
                     Runnable testRunnable = createTestRunnable(workload, list, testData);
                     runTest(problemSize, numThreads, testRunnable, workload);
                 }
@@ -105,7 +112,6 @@ public class OptimisticLinkedListTest {
         }
     }
 	
-
     private static int[] generateTestData(int size) {
         int[] data = new int[size];
         Random rand = new Random();
@@ -117,7 +123,7 @@ public class OptimisticLinkedListTest {
         return data;
     }
 
-    private static Runnable createTestRunnable(String workload, OptimisticSortedLinkedList list, int[] data) {
+    private static Runnable createTestRunnable(String workload, LazySortedLinkedList list, int[] data) {
         switch (workload) {
             case "0C-0I-50D":
                 return () -> workload_0C_0I_50D(list, data);
@@ -130,7 +136,7 @@ public class OptimisticLinkedListTest {
         }
     }
 
-    private static void workload_0C_0I_50D(OptimisticSortedLinkedList list, int[] data) {
+    private static void workload_0C_0I_50D(LazySortedLinkedList list, int[] data) {
         int deletes = data.length / 2;
         for (int i = 0; i < deletes; i++) {
             int valueToDelete = data[i];
@@ -138,7 +144,7 @@ public class OptimisticLinkedListTest {
         }
     }
 
-    private static void workload_50C_25I_25D(OptimisticSortedLinkedList list, int[] data) {
+    private static void workload_50C_25I_25D(LazySortedLinkedList list, int[] data) {
         int reads = data.length / 2;
         int inserts = data.length / 4;
         int deletes = data.length / 4;
@@ -159,7 +165,7 @@ public class OptimisticLinkedListTest {
         }
     }
 
-    private static void workload_100C_0I_0D(OptimisticSortedLinkedList list, int[] data) {
+    private static void workload_100C_0I_0D(LazySortedLinkedList list, int[] data) {
         int reads = data.length;
         for (int i = 0; i < reads; i++) {
             int valueToRead = data[i];

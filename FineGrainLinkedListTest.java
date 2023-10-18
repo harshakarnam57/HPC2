@@ -2,87 +2,97 @@ import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 class Node {
     int value;
-    AtomicReference<Node> next;  // Use AtomicReference for next
+    Node next;
+    Node prev;
 
     Node(int value) {
         this.value = value;
-        this.next = new AtomicReference<>(null);
     }
 }
 
-class OptimisticSortedLinkedList {
-    private AtomicReference<Node> head = new AtomicReference<>(null);
+class FineGrainSortedLinkedList {
+    private Node head;
 
     public void insert(int value) {
         Node newNode = new Node(value);
+        Node prevNode, nextNode;
 
-        while (true) {
-            Node prevNode = null;
-            Node currentNode = head.get();
+        synchronized (this) {
+            prevNode = findPrevNode(value);
+            nextNode = prevNode.next;
+            prevNode.next = newNode;
+        }
 
-            // Traverse the list to find the correct position for insertion
-            while (currentNode != null && currentNode.value < value) {
-                prevNode = currentNode;
-                currentNode = currentNode.next.get();  // Use get() for AtomicReference
-            }
-
-            newNode.next.set(currentNode);
-
-            if (prevNode == null) {
-                // newNode should be the new head
-                if (head.compareAndSet(currentNode, newNode)) {
-                    return;
-                }
-            } else {
-                // Insert newNode after prevNode
-                if (prevNode.next.compareAndSet(currentNode, newNode)) {
-                    return;
-                }
+        synchronized (newNode) {
+            newNode.prev = prevNode;
+            newNode.next = nextNode;
+            if (nextNode != null) {
+                nextNode.prev = newNode;
             }
         }
     }
 
     public boolean delete(int value) {
-        Node prevNode = null;
-        Node currentNode = head.get();
+        Node current, prevNode, nextNode;
+        boolean deleted = false;
 
-        while (currentNode != null && currentNode.value < value) {
-            prevNode = currentNode;
-            currentNode = currentNode.next.get();  // Use get() for AtomicReference
-        }
+        synchronized (this) {
+            current = head;
+            while (current != null && current.value < value) {
+                current = current.next;
+            }
 
-        if (currentNode != null && currentNode.value == value) {
-            if (prevNode == null) {
-                // currentNode is the head
-                if (head.compareAndSet(currentNode, currentNode.next.get())) {
-                    return true;
+            if (current != null && current.value == value) {
+                prevNode = current.prev;
+                nextNode = current.next;
+
+                if (prevNode != null) {
+                    prevNode.next = nextNode;
+                } else {
+                    head = nextNode;
                 }
-            } else {
-                if (prevNode.next.compareAndSet(currentNode, currentNode.next.get())) {
-                    return true;
+
+                if (nextNode != null) {
+                    nextNode.prev = prevNode;
                 }
+
+                deleted = true;
             }
         }
 
-        return false;
+        return deleted;
     }
 
     public boolean read(int value) {
-        Node currentNode = head.get();
+        Node current;
 
-        while (currentNode != null && currentNode.value < value) {
-            currentNode = currentNode.next.get();  // Use get() for AtomicReference
+        synchronized (this) {
+            current = head;
+            while (current != null && current.value < value) {
+                current = current.next;
+            }
+
+            return current != null && current.value == value;
+        }
+    }
+
+    private Node findPrevNode(int value) {
+        Node current = head;
+        Node prev = null;
+
+        while (current != null && current.value < value) {
+            prev = current;
+            current = current.next;
         }
 
-        return currentNode != null && currentNode.value == value;
+        return prev;
     }
 }
 
-public class OptimisticLinkedListTest {
+public class FineGrainLinkedListTest {
 	public static void main(String[] args) {
         int[] problemSizes = {2000, 20000, 200000};
         int[] threadCounts = {1, 2, 4, 6, 8, 10, 12, 14, 16};
@@ -97,14 +107,13 @@ public class OptimisticLinkedListTest {
             for (int numThreads : threadCounts) {
                 for (String workload : workloads) {
                     int[] testData = generateTestData(problemSize);
-                    OptimisticSortedLinkedList list = new OptimisticSortedLinkedList();
+                    FineGrainSortedLinkedList list = new FineGrainSortedLinkedList();
                     Runnable testRunnable = createTestRunnable(workload, list, testData);
                     runTest(problemSize, numThreads, testRunnable, workload);
                 }
             }
         }
     }
-	
 
     private static int[] generateTestData(int size) {
         int[] data = new int[size];
@@ -117,7 +126,7 @@ public class OptimisticLinkedListTest {
         return data;
     }
 
-    private static Runnable createTestRunnable(String workload, OptimisticSortedLinkedList list, int[] data) {
+    private static Runnable createTestRunnable(String workload, FineGrainSortedLinkedList list, int[] data) {
         switch (workload) {
             case "0C-0I-50D":
                 return () -> workload_0C_0I_50D(list, data);
@@ -130,7 +139,7 @@ public class OptimisticLinkedListTest {
         }
     }
 
-    private static void workload_0C_0I_50D(OptimisticSortedLinkedList list, int[] data) {
+    private static void workload_0C_0I_50D(FineGrainSortedLinkedList list, int[] data) {
         int deletes = data.length / 2;
         for (int i = 0; i < deletes; i++) {
             int valueToDelete = data[i];
@@ -138,7 +147,7 @@ public class OptimisticLinkedListTest {
         }
     }
 
-    private static void workload_50C_25I_25D(OptimisticSortedLinkedList list, int[] data) {
+    private static void workload_50C_25I_25D(FineGrainSortedLinkedList list, int[] data) {
         int reads = data.length / 2;
         int inserts = data.length / 4;
         int deletes = data.length / 4;
@@ -159,7 +168,7 @@ public class OptimisticLinkedListTest {
         }
     }
 
-    private static void workload_100C_0I_0D(OptimisticSortedLinkedList list, int[] data) {
+    private static void workload_100C_0I_0D(FineGrainSortedLinkedList list, int[] data) {
         int reads = data.length;
         for (int i = 0; i < reads; i++) {
             int valueToRead = data[i];

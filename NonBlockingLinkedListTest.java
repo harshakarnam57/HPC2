@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 class Node {
     int value;
-    AtomicReference<Node> next;  // Use AtomicReference for next
+    AtomicReference<Node> next;
 
     Node(int value) {
         this.value = value;
@@ -14,7 +14,7 @@ class Node {
     }
 }
 
-class OptimisticSortedLinkedList {
+class NonBlockingSortedLinkedList {
     private AtomicReference<Node> head = new AtomicReference<>(null);
 
     public void insert(int value) {
@@ -27,7 +27,7 @@ class OptimisticSortedLinkedList {
             // Traverse the list to find the correct position for insertion
             while (currentNode != null && currentNode.value < value) {
                 prevNode = currentNode;
-                currentNode = currentNode.next.get();  // Use get() for AtomicReference
+                currentNode = currentNode.next.get();
             }
 
             newNode.next.set(currentNode);
@@ -52,7 +52,7 @@ class OptimisticSortedLinkedList {
 
         while (currentNode != null && currentNode.value < value) {
             prevNode = currentNode;
-            currentNode = currentNode.next.get();  // Use get() for AtomicReference
+            currentNode = currentNode.next.get();
         }
 
         if (currentNode != null && currentNode.value == value) {
@@ -75,34 +75,32 @@ class OptimisticSortedLinkedList {
         Node currentNode = head.get();
 
         while (currentNode != null && currentNode.value < value) {
-            currentNode = currentNode.next.get();  // Use get() for AtomicReference
+            currentNode = currentNode.next.get();
         }
 
         return currentNode != null && currentNode.value == value;
     }
 }
 
-public class OptimisticLinkedListTest {
-	public static void main(String[] args) {
-        int[] problemSizes = {2000, 20000, 200000};
-        int[] threadCounts = {1, 2, 4, 6, 8, 10, 12, 14, 16};
-        String[] workloads = {
-            "0C-0I-50D",
-            "50C-25I-25D",
-            "100C-0I-0D"
-            // Add other workloads as needed
-        };
+public class NonBlockingLinkedListTest {
 
-        for (int problemSize : problemSizes) {
-            for (int numThreads : threadCounts) {
-                for (String workload : workloads) {
-                    int[] testData = generateTestData(problemSize);
-                    OptimisticSortedLinkedList list = new OptimisticSortedLinkedList();
-                    Runnable testRunnable = createTestRunnable(workload, list, testData);
-                    runTest(problemSize, numThreads, testRunnable, workload);
-                }
-            }
-        }
+    public static void main(String[] args) {
+        int[] problemSizes = {2000, 20000, 200000};
+		int[] threadCounts = {1, 2, 4, 6, 8, 10, 12, 14, 16};
+		Runnable[] workloads = {
+		  () -> workload_0C_0I_50D(),
+		  () -> workload_50C_25I_25D(),
+		  () -> workload_100C_0I_0D()
+		  // Add other workloads as needed
+		};
+
+		for (int problemSize : problemSizes) {
+		  for (int numThreads : threadCounts) {
+			for (Runnable workload : workloads) {
+			  runTest(problemSize, numThreads, workload);
+			}
+		  }
+		}
     }
 	
 
@@ -117,7 +115,7 @@ public class OptimisticLinkedListTest {
         return data;
     }
 
-    private static Runnable createTestRunnable(String workload, OptimisticSortedLinkedList list, int[] data) {
+    private static Runnable createTestRunnable(String workload, NonBlockingSortedLinkedList list, int[] data) {
         switch (workload) {
             case "0C-0I-50D":
                 return () -> workload_0C_0I_50D(list, data);
@@ -130,7 +128,7 @@ public class OptimisticLinkedListTest {
         }
     }
 
-    private static void workload_0C_0I_50D(OptimisticSortedLinkedList list, int[] data) {
+    private static void workload_0C_0I_50D(NonBlockingSortedLinkedList list, int[] data) {
         int deletes = data.length / 2;
         for (int i = 0; i < deletes; i++) {
             int valueToDelete = data[i];
@@ -138,7 +136,7 @@ public class OptimisticLinkedListTest {
         }
     }
 
-    private static void workload_50C_25I_25D(OptimisticSortedLinkedList list, int[] data) {
+    private static void workload_50C_25I_25D(NonBlockingSortedLinkedList list, int[] data) {
         int reads = data.length / 2;
         int inserts = data.length / 4;
         int deletes = data.length / 4;
@@ -159,7 +157,7 @@ public class OptimisticLinkedListTest {
         }
     }
 
-    private static void workload_100C_0I_0D(OptimisticSortedLinkedList list, int[] data) {
+    private static void workload_100C_0I_0D(NonBlockingSortedLinkedList list, int[] data) {
         int reads = data.length;
         for (int i = 0; i < reads; i++) {
             int valueToRead = data[i];
